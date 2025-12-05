@@ -2,6 +2,7 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
+import { Compte } from "../models/index.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -21,6 +22,15 @@ router.post("/register", async (req, res) => {
 
     const user = new User({ nom, prenom, email, motDePass, role, localisation, description });
     await user.save();
+
+    // Création automatique d'un compte virtuel pour l'utilisateur
+    try {
+      const compte = new Compte({ userId: user._id });
+      await compte.save();
+    } catch (e) {
+      // en cas d'erreur de création de compte, on ne bloque pas l'inscription mais on loggue
+      console.error("Erreur création Compte:", e);
+    }
 
     // On peut ne pas renvoyer le mot de passe
     const token = jwt.sign({ id: user._id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
