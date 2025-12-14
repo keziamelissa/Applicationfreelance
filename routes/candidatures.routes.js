@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listCandidatures, getCandidature, createCandidature, updateCandidature, deleteCandidature, acceptCandidature, rejectCandidature } from '../controllers/candidatures.controller.js';
+import { listCandidatures, getCandidature, createCandidature, updateCandidature, deleteCandidature, acceptCandidature, rejectCandidature, withdrawCandidature } from '../controllers/candidatures.controller.js';
 import { protect, authorize } from "../middlewares/auth.middleware.js";
 
 const router = Router();
@@ -9,7 +9,9 @@ router.post('/', createCandidature);
 router.put('/:id', updateCandidature);
 router.delete('/:id', deleteCandidature);
 
-// Client actions
-router.post('/:id/accept', protect, authorize('client'), acceptCandidature);
-router.post('/:id/reject', protect, authorize('client'), rejectCandidature);
+// Client actions (ownership verified in controller)
+router.post('/:id/accept', protect, acceptCandidature);
+router.post('/:id/reject', protect, rejectCandidature);
+// Freelancer action: withdraw candidature
+router.post('/:id/withdraw', protect, authorize('freelancer'), withdrawCandidature);
 export default router;

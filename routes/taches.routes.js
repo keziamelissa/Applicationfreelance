@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { protect, authorize } from "../middlewares/auth.middleware.js"
-import { listTaches, getTache, createTacheWithEscrow, updateTache, deleteTache, listMyTaches, terminerTache } from '../controllers/taches.controller.js';
+import { listTaches, getTache, createTacheWithEscrow, updateTache, deleteTacheIfNoContract, listMyTaches, terminerTache } from '../controllers/taches.controller.js';
 import { listCandidaturesByTache, applyToTache } from '../controllers/candidatures.controller.js';
 
 const router = Router();
@@ -10,7 +10,7 @@ router.get('/mine', protect, authorize("client"), listMyTaches);
 router.get('/:id', getTache);
 router.post('/', protect, authorize("client"), createTacheWithEscrow);
 router.put('/:id', updateTache);
-router.delete('/:id', deleteTache);
+router.delete('/:id', protect, authorize("client"), deleteTacheIfNoContract);
 
 // Nested candidature routes for a given tache
 router.get('/:tacheId/candidatures', listCandidaturesByTache);

@@ -1,4 +1,5 @@
 import { Tache, Contrat } from '../models/index.js';
+import { notifyAdmins, notifyAllFreelancers } from '../services/notifications.service.js';
 import { list, getOne, createOne, updateOne, deleteOne } from './crudFactory.js';
 import { Compte, Escrow } from '../models/index.js';
 
@@ -15,6 +16,42 @@ export const listMyTaches = async (req, res, next) => {
     if (!clientId) return res.status(401).json({ error: 'Non authentifié' });
     const rows = await Tache.find({ idClient: clientId });
     res.json(rows);
+  } catch (e) { next(e); }
+};
+
+
+// Delete a task only if no contract exists; must be owned by the authenticated client.
+export const deleteTacheIfNoContract = async (req, res, next) => {
+  try {
+    const clientId = req.user?.id || req.user?._id;
+    if (!clientId) return res.status(401).json({ message: 'Non authentifié' });
+
+    const { id } = req.params;
+    const tache = await Tache.findById(id);
+    if (!tache) return res.status(404).json({ message: 'Tâche non trouvée' });
+    if (String(tache.idClient) !== String(clientId)) {
+      return res.status(403).json({ message: 'Accès refusé' });
+    }
+
+    const existingContrat = await Contrat.findOne({ idTache: id });
+    if (existingContrat) {
+      return res.status(400).json({ message: 'Impossible de retirer: un contrat existe déjà pour cette tâche' });
+    }
+
+    // If escrow is still blocked, refund to client and remove escrow
+    const escrow = await Escrow.findOne({ tacheId: id });
+    if (escrow && escrow.statut === 'bloqué') {
+      const compteClient = await Compte.findOne({ userId: clientId });
+      if (compteClient) {
+        compteClient.solde += (Number(escrow.montant) || 0);
+        await compteClient.save();
+      }
+      await escrow.deleteOne();
+    }
+
+    await tache.deleteOne();
+    try { await notifyAdmins('task.removed', `Tâche supprimée: "${tache.titre}".`); } catch {}
+    return res.json({ message: 'Tâche retirée avec succès' });
   } catch (e) { next(e); }
 };
 
@@ -78,6 +115,11 @@ export const createTacheWithEscrow = async (req, res, next) => {
     });
 
     res.status(201).json({ message: 'Tâche créée et montant bloqué', tache });
+    try {
+      await notifyAdmins('task.created', `Nouvelle tâche créée: "${tache.titre}".`);
+      // Inform all freelancers (covers freelancer/freelance/freelanceur variants)
+      await notifyAllFreelancers('task.new', `Nouvelle tâche publiée: "${tache.titre}".`);
+    } catch {}
   } catch (e) { next(e); }
 };
 // Release escrow when client validates task completion

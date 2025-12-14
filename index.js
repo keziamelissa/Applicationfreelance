@@ -25,7 +25,11 @@ app.use(express.json());
 
 // CORS POUR LE FRONTEND
 app.use(cors({
-  origin: 'http://localhost:3000', // ton frontend React (Vite = 5173, React CLI = 3000)
+  origin: (origin, callback) => {
+    const allowed = ['http://localhost:5173', 'http://localhost:3000'];
+    if (!origin || allowed.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 
