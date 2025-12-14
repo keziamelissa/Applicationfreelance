@@ -1,5 +1,5 @@
-import { Tache, Contrat } from '../models/index.js';
-import { notifyAdmins, notifyAllFreelancers } from '../services/notifications.service.js';
+import { Tache, Contrat, User, Notification } from '../models/index.js';
+import { notifyAdmins, notifyAllFreelancers, notifyAllUsers } from '../services/notifications.service.js';
 import { list, getOne, createOne, updateOne, deleteOne } from './crudFactory.js';
 import { Compte, Escrow } from '../models/index.js';
 
@@ -114,12 +114,32 @@ export const createTacheWithEscrow = async (req, res, next) => {
       statut: 'bloqué',
     });
 
-    res.status(201).json({ message: 'Tâche créée et montant bloqué', tache });
+    // Dispatch notifications BEFORE sending the response to avoid any early termination edge-cases
     try {
-      await notifyAdmins('task.created', `Nouvelle tâche créée: "${tache.titre}".`);
-      // Inform all freelancers (covers freelancer/freelance/freelanceur variants)
-      await notifyAllFreelancers('task.new', `Nouvelle tâche publiée: "${tache.titre}".`);
-    } catch {}
+      const adminRes = await notifyAdmins('task.created', `Nouvelle tâche créée: "${tache.titre}".`);
+      const allRes = await notifyAllUsers('task.new', `Nouvelle tâche publiée: "${tache.titre}".`);
+      console.log('[notify] admins:', Array.isArray(adminRes) ? adminRes.length : 1, 'all users:', Array.isArray(allRes) ? allRes.length : 0)
+    } catch (err) { console.error('[notify] all users error', err?.message) }
+    // Best-effort extra broadcast to freelancers (in case some roles are custom)
+    try {
+      const freeRes = await notifyAllFreelancers('task.new', `Nouvelle tâche publiée: "${tache.titre}".`);
+      console.log('[notify] freelancers:', Array.isArray(freeRes) ? freeRes.length : 0)
+    } catch (err) { console.error('[notify] freelancers error', err?.message) }
+
+    // Hard fallback: directly insert notifications for every user
+    try {
+      const native = Notification?.db?.db; // native Mongo Db instance
+      if (!native) throw new Error('no native db')
+      const rawUsers = await native.collection('users').find({}, { projection: { _id: 1 } }).toArray()
+      console.log('[notify][fallback] raw users found:', rawUsers.length)
+      if (rawUsers.length > 0) {
+        const docs = rawUsers.map(u => ({ idUsers: u._id, type: 'task.new', message: `Nouvelle tâche publiée: "${tache.titre}".` }))
+        const res = await native.collection('notifications').insertMany(docs, { ordered: false })
+        console.log('[notify][fallback] native inserted:', res?.insertedCount || 0)
+      }
+    } catch (err) { console.error('[notify][fallback] error', err?.message) }
+
+    res.status(201).json({ message: 'Tâche créée et montant bloqué', tache });
   } catch (e) { next(e); }
 };
 // Release escrow when client validates task completion

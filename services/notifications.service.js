@@ -10,8 +10,23 @@ export const notifyUser = async (userId, type, message) => {
 export const notifyUsers = async (userIds, type, message) => {
   try {
     const docs = (userIds || []).filter(Boolean).map(id => ({ idUsers: id, type, message }));
-    if (!docs.length) return [];
-    return await Notification.insertMany(docs, { ordered: false });
+    if (!docs.length) {
+      console.log('[notifyUsers] no target users for', type);
+      return [];
+    }
+    const res = await Notification.insertMany(docs, { ordered: false });
+    console.log('[notifyUsers] inserted notifications:', Array.isArray(res) ? res.length : 0, 'type:', type);
+    return res;
+  } catch (_) { return [] }
+};
+
+// Notify all users in the system
+export const notifyAllUsers = async (type, message) => {
+  try {
+    const users = await User.find({}, { _id: 1 }).lean();
+    console.log('[notifyAllUsers] users found:', users.length);
+    const ids = users.map(u => u._id);
+    return await notifyUsers(ids, type, message);
   } catch (_) { return [] }
 };
 

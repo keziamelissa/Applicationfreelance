@@ -3,6 +3,7 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 import { Compte } from "../models/index.js";
+import { notifyAdmins } from "../services/notifications.service.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -34,6 +35,8 @@ router.post("/register", async (req, res) => {
 
     // On peut ne pas renvoyer le mot de passe
     const token = jwt.sign({ id: user._id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // Inform admins (non-bloquant)
+    try { await notifyAdmins('user.created', `Nouvel utilisateur: ${prenom} ${nom} (${role}).`); } catch {}
     res.status(201).json({ user: { id: user._id, nom: user.nom, prenom: user.prenom, email: user.email, role: user.role }, token });
   } catch (err) {
     console.error(err);
