@@ -1,4 +1,4 @@
-import { Candidature, Tache, Contrat } from '../models/index.js';
+import { Candidature, Tache, Contrat, User } from '../models/index.js';
 import { notifyUser, notifyAdmins } from '../services/notifications.service.js';
 import { list, getOne, createOne, updateOne, deleteOne } from './crudFactory.js';
 
@@ -78,7 +78,20 @@ export const acceptCandidature = async (req, res, next) => {
       'candidature.accepted',
       `Votre candidature pour "${tache.titre}" a été acceptée. Le contrat commence le ${fmt(startDate)} et se termine le ${fmt(endDate)}.`
     );
-    await notifyAdmins('candidature.accepted', `Une candidature a été acceptée pour la tâche "${tache.titre}".`);
+    // Enrichir la notification admin avec les acteurs et les dates
+    try {
+      const [freel, client] = await Promise.all([
+        User.findById(cand.idFreelanceur, 'nom prenom email').lean(),
+        User.findById(tache.idClient, 'nom prenom email').lean(),
+      ])
+      const full = (u) => (u ? ([u.prenom, u.nom].filter(Boolean).join(' ') || u.email || String(u._id)) : 'N/A')
+      await notifyAdmins(
+        'candidature.accepted',
+        `Candidature acceptée: le client ${full(client)} a accepté ${full(freel)} pour "${tache.titre}" (du ${fmt(startDate)} au ${fmt(endDate)}).`
+      )
+    } catch (_) {
+      await notifyAdmins('candidature.accepted', `Une candidature a été acceptée pour la tâche "${tache.titre}".`)
+    }
 
     res.status(200).json({ message: 'Candidature acceptée et contrat créé', contrat });
   } catch (e) { next(e); }
@@ -101,7 +114,19 @@ export const rejectCandidature = async (req, res, next) => {
     await cand.save();
     // Notify freelancer and admins
     await notifyUser(cand.idFreelanceur, 'candidature.rejected', `Votre candidature pour "${tache.titre}" a été refusée.`);
-    await notifyAdmins('candidature.rejected', `Une candidature a été refusée pour la tâche "${tache.titre}".`);
+    try {
+      const [freel, client] = await Promise.all([
+        User.findById(cand.idFreelanceur, 'nom prenom email').lean(),
+        User.findById(tache.idClient, 'nom prenom email').lean(),
+      ])
+      const full = (u) => (u ? ([u.prenom, u.nom].filter(Boolean).join(' ') || u.email || String(u._id)) : 'N/A')
+      await notifyAdmins(
+        'candidature.rejected',
+        `Candidature refusée: le client ${full(client)} a refusé ${full(freel)} pour "${tache.titre}".`
+      )
+    } catch (_) {
+      await notifyAdmins('candidature.rejected', `Une candidature a été refusée pour la tâche "${tache.titre}".`)
+    }
     res.status(200).json({ message: 'Candidature refusée' });
   } catch (e) { next(e); }
 };
@@ -135,7 +160,19 @@ export const applyToTache = async (req, res, next) => {
       if (tache?.idClient) {
         await notifyUser(tache.idClient, 'candidature.new', `Nouvelle candidature reçue pour votre tâche "${tache.titre}".`);
       }
-      await notifyAdmins('candidature.new', `Un freelance a postulé à la tâche "${tache?.titre || tacheId}".`);
+      try {
+        const [freel, client] = await Promise.all([
+          User.findById(userId, 'nom prenom email').lean(),
+          User.findById(tache.idClient, 'nom prenom email').lean(),
+        ])
+        const full = (u) => (u ? ([u.prenom, u.nom].filter(Boolean).join(' ') || u.email || String(u._id)) : 'N/A')
+        await notifyAdmins(
+          'candidature.new',
+          `Nouvelle candidature: ${full(freel)} a postulé à "${tache.titre}" (client: ${full(client)}).`
+        )
+      } catch (_) {
+        await notifyAdmins('candidature.new', `Un freelance a postulé à la tâche "${tache?.titre || tacheId}".`)
+      }
     } catch { }
 
     res.status(201).json(created);
@@ -158,7 +195,16 @@ export const withdrawCandidature = async (req, res, next) => {
       if (tache?.idClient) {
         await notifyUser(tache.idClient, 'candidature.withdrawn', `Un freelance a retiré sa candidature pour votre tâche "${tache.titre}".`);
       }
-      await notifyAdmins('candidature.withdrawn', `Une candidature a été retirée pour la tâche "${tache?.titre || cand.idTache}".`);
+      try {
+        const [freel, client] = await Promise.all([
+          User.findById(cand.idFreelanceur, 'nom prenom email').lean(),
+          tache?.idClient ? User.findById(tache.idClient, 'nom prenom email').lean() : null,
+        ])
+        const full = (u) => (u ? ([u.prenom, u.nom].filter(Boolean).join(' ') || u.email || String(u._id)) : 'N/A')
+        await notifyAdmins('candidature.withdrawn', `Candidature retirée: ${full(freel)} a retiré sa candidature pour "${tache?.titre || cand.idTache}" (client: ${full(client)}).`)
+      } catch (_) {
+        await notifyAdmins('candidature.withdrawn', `Une candidature a été retirée pour la tâche "${tache?.titre || cand.idTache}".`)
+      }
     } catch { }
     res.status(200).json({ message: 'Candidature retirée' });
   } catch (e) { next(e); }
