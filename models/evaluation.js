@@ -15,5 +15,7 @@ export default (mongoose) => {
     { collection: 'evaluations' }
   );
 
+  evaluationSchema.index({ contratId: 1, clientId: 1 }, { unique: true });
+
   return model('Evaluation', evaluationSchema);
 };
