@@ -1,9 +1,24 @@
-import { Contrat } from '../models/index.js';
+import { Contrat, Candidature } from '../models/index.js';
 import { list, getOne, createOne, updateOne, deleteOne } from './crudFactory.js';
 
 export const listContrats = list(Contrat);
 export const getContrat = getOne(Contrat);
-export const createContrat = createOne(Contrat);
+export const createContrat = async (req, res, next) => {
+  try {
+    const contrat = await Contrat.create(req.body);
+    const { idTache, idFreelanceur } = req.body || {};
+    if (idTache && idFreelanceur) {
+      try {
+        await Candidature.findOneAndUpdate(
+          { idTache, idFreelanceur, status: 'enAttente' },
+          { status: 'accepte' },
+          { new: true }
+        );
+      } catch (_) {}
+    }
+    res.status(201).json(contrat);
+  } catch (e) { next(e); }
+};
 export const updateContrat = updateOne(Contrat);
 export const deleteContrat = deleteOne(Contrat);
 

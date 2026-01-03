@@ -188,12 +188,19 @@ export const withdrawCandidature = async (req, res, next) => {
     const cand = await Candidature.findById(id);
     if (!cand) return res.status(404).json({ error: 'Candidature non trouvée' });
     if (String(cand.idFreelanceur) !== String(userId)) return res.status(403).json({ error: 'Accès refusé' });
-    cand.status = 'retirer';
-    await cand.save();
+    // Interdire le retrait si un contrat existe déjà pour cette candidature (même tâche et même freelance)
     try {
-      const tache = await Tache.findById(cand.idTache);
+      const exists = await Contrat.findOne({ idTache: cand.idTache, idFreelanceur: cand.idFreelanceur }).lean();
+      if (exists) {
+        return res.status(409).json({ error: 'Impossible de retirer la candidature: un contrat a déjà été créé pour cette candidature.' });
+      }
+    } catch (_) { /* ignore */ }
+    // Conserver la référence de tâche avant suppression pour notifier
+    const tache = await Tache.findById(cand.idTache);
+    await Candidature.deleteOne({ _id: cand._id });
+    try {
       if (tache?.idClient) {
-        await notifyUser(tache.idClient, 'candidature.withdrawn', `Un freelance a retiré sa candidature pour votre tâche "${tache.titre}".`);
+        await notifyUser(tache.idClient, 'candidature.withdrawn', `Un freelance a retiré sa candidature pour votre tâche "${tache.titre}" (candidature supprimée).`);
       }
       try {
         const [freel, client] = await Promise.all([
@@ -201,11 +208,11 @@ export const withdrawCandidature = async (req, res, next) => {
           tache?.idClient ? User.findById(tache.idClient, 'nom prenom email').lean() : null,
         ])
         const full = (u) => (u ? ([u.prenom, u.nom].filter(Boolean).join(' ') || u.email || String(u._id)) : 'N/A')
-        await notifyAdmins('candidature.withdrawn', `Candidature retirée: ${full(freel)} a retiré sa candidature pour "${tache?.titre || cand.idTache}" (client: ${full(client)}).`)
+        await notifyAdmins('candidature.withdrawn', `Candidature retirée: ${full(freel)} a retiré sa candidature pour "${tache?.titre || cand.idTache}" (client: ${full(client)}). La candidature a été supprimée.`)
       } catch (_) {
-        await notifyAdmins('candidature.withdrawn', `Une candidature a été retirée pour la tâche "${tache?.titre || cand.idTache}".`)
+        await notifyAdmins('candidature.withdrawn', `Une candidature a été retirée pour la tâche "${tache?.titre || cand.idTache}" (supprimée).`)
       }
     } catch { }
-    res.status(200).json({ message: 'Candidature retirée' });
+    res.status(200).json({ message: 'Candidature retirée et supprimée' });
   } catch (e) { next(e); }
 };

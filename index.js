@@ -64,17 +64,24 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGO_URI;
+const MONGODB_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/freelance';
 
 (async () => {
   try {
-    await mongoose.connect(MONGODB_URI);
+    const connOpts = {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 20000,
+      maxPoolSize: 5,
+      retryWrites: true,
+    };
+    await mongoose.connect(MONGODB_URI, connOpts);
     console.log('✅ MongoDB connected successfully');
     app.listen(PORT, () =>
       console.log(`🚀 Server running on http://localhost:${PORT}`)
     );
   } catch (e) {
     console.error('❌ Failed to start server:', e);
+    console.error('ℹ️ Tips: Vérifiez MONGO_URI dans votre .env, la connectivité réseau (VPN/Firewall), et que votre IP est autorisée (Atlas). Essayez aussi un Mongo local: mongodb://127.0.0.1:27017/freelance');
     process.exit(1);
   }
 })();
