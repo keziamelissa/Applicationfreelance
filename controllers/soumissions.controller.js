@@ -1,11 +1,40 @@
-import { Soumission } from '../models/index.js';
+import { Soumission, Tache } from '../models/index.js';
+import { notifyUser, notifyAdmins } from '../services/notifications.service.js';
 import { list, getOne, createOne, updateOne, deleteOne } from './crudFactory.js';
 
 export const listSoumissions = list(Soumission);
 export const getSoumission = getOne(Soumission);
-export const createSoumission = createOne(Soumission);
 export const updateSoumission = updateOne(Soumission);
 export const deleteSoumission = deleteOne(Soumission);
+
+// Create a simple submission (no files middleware) and notify the client
+export const createSoumission = async (req, res, next) => {
+  try {
+    const payload = {
+      ...req.body,
+      deliveredAt: req.body?.deliveredAt || new Date(),
+      status: req.body?.status || 'submitted',
+    };
+    const row = await Soumission.create(payload);
+
+    try {
+      // Determine clientId from body or from task
+      let clientId = row.clientId;
+      let taskTitle = '';
+      if (!clientId && row.taskId) {
+        const t = await Tache.findById(row.taskId).lean();
+        if (t) { clientId = t.idClient; taskTitle = t.titre || t.title || ''; }
+      }
+      if (clientId) {
+        await notifyUser(clientId, 'soumission.submitted', `Un rendu a été soumis${taskTitle ? ` pour la tâche "${taskTitle}"` : ''}.`);
+      } else {
+        await notifyAdmins('soumission.submitted', 'Un rendu a été soumis, mais aucun client cible n’a été trouvé.');
+      }
+    } catch (_) { /* ignore notification errors */ }
+
+    res.status(201).json(row);
+  } catch (e) { next(e); }
+};
 
 export const createSoumissionWithFiles = async (req, res, next) => {
   try {
@@ -69,6 +98,22 @@ export const createSoumissionWithFiles = async (req, res, next) => {
     };
 
     const row = await Soumission.create(payload);
+
+    // Notify client that a delivery was submitted
+    try {
+      let clientId = row.clientId;
+      let taskTitle = '';
+      if (!clientId && row.taskId) {
+        const t = await Tache.findById(row.taskId).lean();
+        if (t) { clientId = t.idClient; taskTitle = t.titre || t.title || ''; }
+      }
+      if (clientId) {
+        await notifyUser(clientId, 'soumission.submitted', `Un rendu a été soumis${taskTitle ? ` pour la tâche "${taskTitle}"` : ''}.`);
+      } else {
+        await notifyAdmins('soumission.submitted', 'Un rendu a été soumis avec fichiers, mais aucun client cible n’a été trouvé.');
+      }
+    } catch (_) { /* ignore */ }
+
     res.status(201).json(row);
   } catch (e) {
     next(e);
