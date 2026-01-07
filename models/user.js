@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   profile_photo: { type: String },
   description: { type: String },
   localisation: { type: String },
+  status: { type: String, enum: ['actif','suspendu'], default: 'actif' },
   dateDeCreation: { type: Date, default: Date.now },
   dateDeMiseAJour: { type: Date },
 });

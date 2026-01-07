@@ -72,8 +72,13 @@ export const createTacheWithEscrow = async (req, res, next) => {
     const compteClient = await Compte.findOne({ userId: clientId });
     const fraisClient = numericBudget * 0.025;
     const montantADebiter = numericBudget + fraisClient;
-    if (!compteClient || compteClient.solde < montantADebiter) {
-      return res.status(400).json({ message: 'Solde insuffisant' });
+    // Règle demandée: le budget ne doit pas dépasser le solde du compte
+    if (!compteClient || compteClient.solde < numericBudget) {
+      return res.status(400).json({ message: "Vous n'avez pas cette somme sur votre compte" });
+    }
+    // Vérification additionnelle: couvrir également les frais si applicables
+    if (compteClient.solde < montantADebiter) {
+      return res.status(400).json({ message: 'Solde insuffisant pour couvrir les frais' });
     }
 
     // Normaliser competences en tableau de string

@@ -4,6 +4,16 @@ import { Compte } from '../models/index.js'
 
 const router = Router()
 
+router.get('/mine', protect, async (req, res, next) => {
+  try {
+    const userId = req.user?.id || req.user?._id
+    if (!userId) return res.status(401).json({ message: 'Non authentifié' })
+    let compte = await Compte.findOne({ userId })
+    if (!compte) compte = await Compte.create({ userId })
+    res.json({ solde: compte.solde, devise: compte.devise })
+  } catch (e) { next(e) }
+})
+
 // Créditer le compte du user courant (client ou freelance) - pour tests / sandbox
 router.post('/credit', protect, async (req, res, next) => {
   try {

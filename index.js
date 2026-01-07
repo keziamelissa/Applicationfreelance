@@ -19,6 +19,7 @@ import testRoutes from './routes/test.routes.js';
 import soumissionsRoutes from './routes/soumissions.routes.js';
 import revisionsRoutes from './routes/revisions.routes.js';
 import evaluationsRoutes from './routes/evaluations.routes.js';
+import compteRoutes from './routes/compte.routes.js';
 
 const app = express();
 app.use(express.json());
@@ -53,6 +54,7 @@ app.use('/api/competences-utilisateurs', competencesUtilisateursRoutes);
 app.use('/api/soumissions', soumissionsRoutes);
 app.use('/api/revisions', revisionsRoutes);
 app.use('/api/evaluations', evaluationsRoutes);
+app.use('/api/compte', compteRoutes);
 
 // Not found
 app.use((req, res) => res.status(404).json({ error: 'Not Found' }));

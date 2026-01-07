@@ -37,7 +37,7 @@ router.post("/register", async (req, res) => {
     const token = jwt.sign({ id: user._id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
     // Inform admins (non-bloquant)
     try { await notifyAdmins('user.created', `Nouvel utilisateur: ${prenom} ${nom} (${role}).`); } catch {}
-    res.status(201).json({ user: { id: user._id, nom: user.nom, prenom: user.prenom, email: user.email, role: user.role }, token });
+    res.status(201).json({ user: { id: user._id, nom: user.nom, prenom: user.prenom, email: user.email, role: user.role, status: user.status }, token });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Erreur lors de l'inscription" });
@@ -57,7 +57,7 @@ router.post("/login", async (req, res) => {
     if (!isMatch) return res.status(401).json({ message: "Identifiants invalides" });
 
     const token = jwt.sign({ id: user._id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-    res.json({ user: { id: user._id, nom: user.nom, prenom: user.prenom, email: user.email, role: user.role }, token });
+    res.json({ user: { id: user._id, nom: user.nom, prenom: user.prenom, email: user.email, role: user.role, status: user.status }, token });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Erreur lors de la connexion" });
